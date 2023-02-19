@@ -1,9 +1,8 @@
-<html>
-    <head></head>
-    <body>
-        <h1> This is from HTML File </h1>
-        {% for i in obj%}
+{% extends 'base.html' %}
+
+{% block content %} 
+    <h1> This is from HTML File </h1>
+    {% for i in obj%}
         <h2>{{i}}</h2>
-        {% endfor %}
-    </body>
-</html>
+    {% endfor %}
+{% endblock content %}

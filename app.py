@@ -26,7 +26,37 @@ class Students(db.Model):
         return f"ID : {self.id}, Username: {self.username}"
 
 
-@app.route("/")
+def generate_auth_token(user):
+    return jwt.encode({ 'id': user.id },app.config['SECRET_KEY'], algorithm='HS256')
+
+
+def verify_auth_token(token):
+    try:
+        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+    except:
+        return
+    return Students.query.filter(Students.id==data['id']).one()
+
+
+def login_check(func):
+    def inner():
+        token = request.cookies.get("token")
+        if verify_auth_token(token):
+            return func()
+        else:
+            return signin()
+    return inner
+
+
+@app.route('/logout')
+def log_out():
+    resp = make_response(redirect('/'))
+    resp.delete_cookie('token',path='/', domain="127.0.0.1")
+    return resp
+
+
+@app.route("/",methods=['GET','POST'])
+@login_check
 def home():
     # db.create_all()
     number=range(2,21,2)
@@ -49,48 +79,40 @@ def form():
 
 @app.route("/signup",methods=['GET','POST'])
 def signup():
-    if request.method == "POST":
-        username = request.form.get("username")
-        pwd = request.form.get("password")
-        user = Students(username=username,password=generate_password_hash(pwd))
-        db.session.add(user)
-        db.session.commit()
-        response = make_response(redirect('/'))
-        response.set_cookie('token',generate_auth_token(user))
-        return response
-    return render_template('signup.html',type = "Sign-Up!")
+    if not verify_auth_token(request.cookies.get("token")):
+        if request.method == "POST":
+            username = request.form.get("username")
+            pwd = request.form.get("password")
+            user = Students(username=username,password=generate_password_hash(pwd))
+            db.session.add(user)
+            db.session.commit()
+            response = make_response(redirect('/'))
+            response.set_cookie('token',generate_auth_token(user))
+            return response
+        return render_template('signup.html',type = "Sign-Up!")
+    else:
+        return redirect('/')
 
 
 @app.route("/signin",methods=['GET','POST'])
 def signin():
     valid = False
-    
-    if request.method == "POST":
-        username = request.form.get("username")
-        pwd = request.form.get("password")
-        user = Students.query.filter(Students.username==username).first()
-        if user is not None :
-            if check_password_hash(user.password,pwd):
-                valid = True
-                response = make_response(redirect('/'))
-                response.set_cookie('token',generate_auth_token(user))
-                return response
-        if not valid:
-            return '<h1>Invalid User or Password!</h1>'
-    return render_template('signup.html',type= "Sign-In!")
-
-
-
-def generate_auth_token(user):
-    return jwt.encode({ 'id': user.id },app.config['SECRET_KEY'], algorithm='HS256')
-
-
-def verify_auth_token(token):
-    try:
-        data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
-    except:
-        return
-    return Students.query.filter(Students.id==data['id']).one()
+    if not verify_auth_token(request.cookies.get("token")):
+        if request.method == "POST":
+            username = request.form.get("username")
+            pwd = request.form.get("password")
+            user = Students.query.filter(Students.username==username).first()
+            if user is not None :
+                if check_password_hash(user.password,pwd):
+                    valid = True
+                    response = make_response(redirect('/'))
+                    response.set_cookie('token',generate_auth_token(user))
+                    return response
+            if not valid:
+                return '<h1>Invalid User or Password!</h1>'
+        return render_template('signup.html',type= "Sign-In!")
+    else:
+        return redirect('/')
 
 
 
